@@ -1,0 +1,304 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+
+	<title>Touch Timer</title>
+	<style>
+		body {
+			background: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			width: 100vw;
+			height: 100vh;
+			overflow: hidden;
+		}
+
+		#timer {
+			width: 100%;
+			height: 100%;
+			background-color: #3c3c3c;
+			border: 2px solid #cecece;
+			/*border-radius: 10px;*/
+			display: flex;
+			flex-direction: row;
+		}
+
+		.column {
+			height: 100%;
+			border: 1px;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.time_buttons {
+			flex-grow: 1;
+			width: 100%;
+			display: flex;
+			flex-direction: row;
+			justify-content: center;
+			align-items: center;
+		}
+
+		#text_box {
+			flex-grow: 5;
+			width: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background: #f0f0f0;
+		}
+
+		a {
+			color: #020202;
+			font-size: 48px;
+			text-align: center;
+		}
+
+		button {
+			color: #0f0f0f;
+			width: 100%;
+			font-size: 40px;
+			cursor: pointer;
+			background: none;
+			border: 1px solid #cecece;
+			text-align: center;
+			vertical-align: middle;
+		}
+
+			button:hover {
+				background: #707070;
+			}
+
+		.time_buttons button {
+			font-size: 14px;
+			height: 100%;
+		}
+
+		input[type="range"] {
+			accent-color: #c00000;
+			direction: rtl;
+		}
+	</style>
+
+	<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
+
+	<!-- To enable offline debugging using a local reference to Office.js, use: -->
+	<!-- <script src="../Scripts/Office/MicrosoftAjax.js" type="text/javascript"></script>  -->
+	<!-- <script src="../Scripts/Office/1/office.js" type="text/javascript"></script>  -->
+
+	<link href="../Content/Button.css" rel="stylesheet" type="text/css" />
+	<link href="../Content/MessageBanner.css" rel="stylesheet" type="text/css" />
+
+
+	<!-- For the Office UI Fabric Core, go to https://aka.ms/office-ui-fabric to learn more. -->
+	<link rel="stylesheet" href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/9.6.0/css/fabric.min.css">
+
+	<!-- To enable the offline use of Office UI Fabric Core, use: -->
+	<link rel="stylesheet" href="../Content/fabric.min.css">
+	<!-- Office UI Fabric JS and it's components are no longer actively supported. Please see https://aka.ms/PnP-OfficeFabricReact for recommended Patterns and Practices -->
+	<!-- <link rel="stylesheet" href="https://appsforoffice.microsoft.com/fabric/2.1.0/fabric.components.min.css"> -->
+
+</head>
+<body class="ms-Fabric" dir="ltr">
+	<div id="timer" style="display: flex; flex-direction: column;">
+		<div style="flex-grow: 5; display: flex; flex-direction: row;">
+			<div class="column" style="flex-grow: 1;">
+				<button class="button" id="buttonStart" style="flex: 60% 0 1;" onclick="toggleTimer()">⏵</button>
+				<button class="button" id="buttonReset" style="flex: 40% 0 1;" onclick="resetTimer()">↺</button>
+			</div>
+			<div class="column" style="flex-grow: 7;">
+				<div class="time_buttons" id="timeButtonsUp">
+					<button onclick="adjust_time('hours', +1)">▲</button>
+					<button onclick="adjust_time('minutes', +1)">▲</button>
+					<button onclick="adjust_time('seconds', +1)">▲</button>
+				</div>
+				<div id="text_box">
+					<a id="time_text">00:00:00</a>
+				</div>
+				<div class="time_buttons" id="timeButtonsDown">
+					<button onclick="adjust_time('hours', -1)">▼</button>
+					<button onclick="adjust_time('minutes', -1)">▼</button>
+					<button onclick="adjust_time('seconds', -1)">▼</button>
+				</div>
+			</div>
+		</div>
+		<input style="flex-grow: 1;" type="range" min="0" max="10000" class="slider" id="slider"
+			onchange="sliderChange(this)" oninput="sliderChange(this)">
+
+		<audio id="timer_done_sound" autoplay>
+			<source src="Sounds/system-notification-4-206493.mp3" type="audio/mpeg">
+		</audio>
+	</div>
+
+	<script>
+		let timerInterval;
+
+		let startTime;
+		let lastSetTime = 0;
+		let prevElapsedTime = 0;
+		let remainTime = 0;
+
+		Office.onReady((info) => {
+			if (info.host === Office.HostType.PowerPoint) {
+				//document.getElementById('buttonStart').addEventListener('click', toggleTimer);
+			}
+			
+			// isn't working!
+			//const time_text = document.getElementById("time_text");
+			//function adjustFontSize() {
+			//	const h = time_text.clientHeight * 0.5;
+			//	time_text.style.fontSize = h.toString() + "px";
+			//};
+			//time_text.addEventListener('resize', adjustFontSize); // For some browsers
+			
+			setTimer();
+		});
+
+		function adjust_time(component, amount) {
+			if (timerInterval != null) return;
+			
+			/* Not working for whatever reason!
+			var h = remainTime.getHours();
+			var m = remainTime.getMinutes();
+			var s = remainTime.getSeconds();
+			
+			if (component == "seconds") {
+				s += parseInt(amount);
+				s = (s + 60) % 60; // fix negative number mod
+			}
+			else if (component == "minutes") {
+				m += parseInt(amount);
+				m = (m + 60) % 60;
+			}
+			else if (component == "hours") {
+				h += parseInt(amount);
+				h = (h + 24) % 24;
+			}
+			
+			remainTime = new Date(0, 0, 0, h, m, s, 0);
+			*/
+			
+			remainTime = remainTime < 0 ? 0 : remainTime;
+			
+			var t = Math.ceil(remainTime / 1000); // round up to match display
+			
+			var sec = t % 60;
+			t -= sec; t /= 60;
+			var min = t % 60;
+			t -= min; t /= 60;
+			var hour = t % 24;
+			
+			if (component == "seconds") {
+				sec += parseInt(amount);
+				sec = (sec + 60) % 60; // fix negative number mod
+			}
+			else if (component == "minutes") {
+				min += parseInt(amount);
+				min = (min + 60) % 60;
+			}
+			else if (component == "hours") {
+				hour += parseInt(amount);
+				hour = (hour + 24) % 24;
+			}
+			
+			remainTime = ((hour*60 + min)*60 + sec)*1000;
+			
+			lastSetTime = remainTime;
+			setTimer();
+		}
+		function setTimer() {
+			// round up seconds visually
+			let rounded = Math.ceil(remainTime / 1000) * 1000;
+			
+			var t = rounded / 1000;
+			var sec = t % 60;
+			t -= sec; t /= 60;
+			var min = t % 60;
+			t -= min; t /= 60;
+			var hour = t % 24;
+			
+			var str = hour.toString().padStart(2, '0');
+			str += ":";
+			str += min.toString().padStart(2, '0');
+			str += ":";
+			str += sec.toString().padStart(2, '0');
+			
+			document.getElementById('time_text').textContent = str;
+			
+			let slider_t = 100;
+			if (lastSetTime > 0)
+				slider_t = (remainTime / lastSetTime) * 10000;
+			document.getElementById('slider').value = slider_t;
+		}
+
+		// start timer where it left off
+		function startTimer() {
+			clearInterval(timerInterval);
+
+			// keep track of previously elapsed time, so only duration since last start is done via Date.now - startTime
+			prevElapsedTime = lastSetTime - remainTime;
+
+			remainTime = lastSetTime - prevElapsedTime;
+			if (remainTime <= 0) return; // check to avoid playing sound if no time left
+
+			// use Date.now for timer disaplay (since setInterval is not accurate!)
+			// update every 100ms to hide jumps
+			startTime = new Date(Date.now());
+			timerInterval = setInterval(() => {
+				const elapsedTime = prevElapsedTime + (Date.now() - startTime.getTime());
+				remainTime = lastSetTime - elapsedTime;
+				if (remainTime <= 0) {
+					stopTimer();
+					remainTime = 0;
+					document.getElementById("timer_done_sound").play();
+				}
+				setTimer();
+			}, 50);
+
+			document.getElementById('buttonStart').textContent = "⏸";
+			
+			document.getElementById('timeButtonsUp').style.display = "none";
+			document.getElementById('timeButtonsDown').style.display = "none";
+		}
+		// stop timer (but keep displayed time)
+		function stopTimer() {
+			clearInterval(timerInterval);
+			timerInterval = null;
+
+			document.getElementById('buttonStart').textContent = "⏵";
+			
+			document.getElementById('timeButtonsUp').style.display = "";
+			document.getElementById('timeButtonsDown').style.display = "";
+		}
+		// reset timer
+		function resetTimer() {
+			stopTimer();
+
+			remainTime = lastSetTime;
+			setTimer();
+		}
+		
+		function toggleTimer() {
+			if (timerInterval == null) {
+				startTimer();
+			}
+			else {
+				stopTimer();
+			}
+		}
+		
+		function sliderChange(slider) {
+			stopTimer();
+			remainTime = lastSetTime * (slider.value / 10000);
+			setTimer();
+		}
+	</script>
+</body>
+</html>
